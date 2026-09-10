@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 
 try:
@@ -24,12 +25,19 @@ except ImportError as exc:
 class MotorsCom:
     """High-level interface to control ESP32 motor firmware using serial commands."""
 
-    def __init__(self, device_port=None, baud_rate=None, timeout_s=1.0):
+    def __init__(self, device_port=None, baud_rate=None, timeout_s=1.0, verbose=False):
         self.DEVICE_PORT = device_port
         self.BAUD_RATE = baud_rate
         self.TIMEOUT_S = timeout_s
+        self.VERBOSE = verbose
         self.LOG = logging.getLogger(__name__)
         self._ser = None
+        self._command_lock = threading.Lock()
+
+    def _debug(self, message):
+        """Print debug output only when verbose mode is enabled."""
+        if self.VERBOSE:
+            print(message)
 
     def _load_env_file(self):
         """Load environment variables from the project .env file if present."""
@@ -98,7 +106,7 @@ class MotorsCom:
 
         port, baudrate = self._resolve_port_and_baud()
         self.LOG.info("Connecting to ESP32 on %s @ %s", port, baudrate)
-        print(f"DEBUG: opening serial port {port!r} at {baudrate}")
+        self._debug(f"DEBUG: opening serial port {port!r} at {baudrate}")
 
         try:
             self._ser = serial.Serial(port=port, baudrate=baudrate, timeout=self.TIMEOUT_S)
@@ -134,6 +142,26 @@ class MotorsCom:
             return ""
         return raw.decode("utf-8", errors="replace").strip()
 
+    def _drain_input(self):
+        """Drain stale serial lines before sending a new command."""
+        if not self._ser or not self._ser.is_open:
+            return
+
+        drained = 0
+        start = time.time()
+        while (time.time() - start) < 0.2:
+            waiting = self._ser.in_waiting
+            if waiting <= 0:
+                break
+            line = self._readline()
+            if not line:
+                continue
+            drained += 1
+            self.LOG.debug("RX (drain) <- %s", line)
+
+        if drained:
+            self._debug(f"DEBUG: drained {drained} stale serial line(s) before TX")
+
     def _parse_line(self, line):
         """Parse a firmware line as JSON if possible, otherwise return text."""
         if not line:
@@ -151,56 +179,81 @@ class MotorsCom:
         - Raspberry sends: COMMAND\n
         - ESP32 replies: ACK/ERR/DONE/JSON status lines\n
         """
-        self.connect()
+        with self._command_lock:
+            self.connect()
+            self._drain_input()
 
-        wire = f"{command}\n".encode("utf-8")
-        print(f"DEBUG: sending command -> {command!r} bytes={wire!r}")
-        self.LOG.debug("TX -> %s", command)
-        self._ser.write(wire)
-        self._ser.flush()
+            wire = f"{command}\n".encode("utf-8")
+            self._debug(f"DEBUG: sending command -> {command!r} bytes={wire!r}")
+            self.LOG.debug("TX -> %s", command)
+            self._ser.write(wire)
+            self._ser.flush()
 
-        if not wait_response:
-            return []
+            if not wait_response:
+                return []
 
-        end_at = time.time() + response_timeout_s
-        responses = []
+            end_at = time.time() + response_timeout_s
+            responses = []
 
-        cmd_upper = command.strip().upper()
-        is_multi_stage_vial_move = cmd_upper.startswith("HOME_TO_VIAL") or (
-            cmd_upper.startswith("VIAL") and "_TO_VIAL" in cmd_upper
-        )
-        move_complete_count = 0
+            cmd_upper = command.strip().upper()
+            is_multi_stage_vial_move = cmd_upper.startswith("HOME_TO_VIAL") or (
+                cmd_upper.startswith("VIAL") and "_TO_VIAL" in cmd_upper
+            )
+            move_complete_count = 0
 
-        # ACK means command accepted. For multi-stage moves, wait for both MOVE_COMPLETE events.
-        if is_multi_stage_vial_move:
-            completion_tokens = ("DONE", "DEVICE IS NOW IN VIAL", "ERR", "ERROR")
-        else:
-            completion_tokens = ("DONE", "MOVE_COMPLETE", "ERR", "ERROR")
+            # ACK means command accepted. For multi-stage moves, wait for both MOVE_COMPLETE events.
+            if is_multi_stage_vial_move:
+                completion_tokens = ("DONE", "DEVICE IS NOW IN VIAL", "ERR", "ERROR")
+            else:
+                completion_tokens = ("DONE", "MOVE_COMPLETE", "ERR", "ERROR")
 
-        while time.time() < end_at:
-            line = self._readline()
-            if not line:
-                continue
+            while time.time() < end_at:
+                line = self._readline()
+                if not line:
+                    continue
 
-            parsed = self._parse_line(line)
-            responses.append(parsed)
-            print(f"DEBUG: received <- {parsed['raw']!r}")
-            self.LOG.debug("RX <- %s", parsed["raw"])
+                parsed = self._parse_line(line)
+                responses.append(parsed)
+                self._debug(f"DEBUG: received <- {parsed['raw']!r}")
+                self.LOG.debug("RX <- %s", parsed["raw"])
 
-            raw_upper = parsed["raw"].upper()
-            if "MOVE_COMPLETE" in raw_upper:
-                move_complete_count += 1
+                raw_upper = parsed["raw"].upper()
+                if "MOVE_COMPLETE" in raw_upper:
+                    move_complete_count += 1
 
-            if is_multi_stage_vial_move and move_complete_count >= 2:
-                break
+                if is_multi_stage_vial_move and move_complete_count >= 2:
+                    break
 
-            if any(token in raw_upper for token in completion_tokens):
-                break
+                if any(token in raw_upper for token in completion_tokens):
+                    break
 
-        if wait_response and not responses:
-            print(f"DEBUG: no response received for command {command!r} within {response_timeout_s}s")
+            if wait_response and not responses:
+                self._debug(f"DEBUG: no response received for command {command!r} within {response_timeout_s}s")
 
-        return responses
+            return responses
+
+    @staticmethod
+    def _has_error(responses):
+        for item in responses:
+            raw = str(item.get("raw", "")).upper()
+            if "ERR" in raw or "ERROR" in raw:
+                return True
+        return False
+
+    def run_sequence(self, commands, settle_delay_s=0.15):
+        """Run commands in order, waiting for each routine to complete before the next."""
+        all_responses = []
+        for item in commands:
+            if isinstance(item, tuple):
+                cmd, timeout_s = item
+            else:
+                cmd, timeout_s = item, 120.0
+
+            responses = self.send_command(cmd, wait_response=True, response_timeout_s=float(timeout_s))
+            all_responses.append({"command": cmd, "responses": responses})
+            time.sleep(settle_delay_s)
+
+        return all_responses
 
     def get_status(self):
         raise NotImplementedError("Firmware does not implement STATUS command.")
@@ -331,14 +384,112 @@ class MotorsCom:
         raise NotImplementedError("Firmware does not implement STOP_ALL command.")
 
 
-if __name__ == "__main__":
-    # Example of using environment variables in other code.
-    # The project .env file should contain:
-    #   MOTOR_PORT=COM6
-    #   MOTOR_BAUD=115200
-    logging.basicConfig(level=logging.INFO, format="[%(module)s] %(message)s", stream=sys.stdout)
-    with MotorsCom() as motor:
-        motor.home_to_vial1()
+class FastMotorInterface:
+    """Fast high-level interface with smart vial routing and safe sequencing."""
+
+    def __init__(self, device_port=None, baud_rate=None, timeout_s=1.0, verbose=False):
+        self._motor = MotorsCom(
+            device_port=device_port,
+            baud_rate=baud_rate,
+            timeout_s=timeout_s,
+            verbose=verbose,
+        )
+        self._position = "UNKNOWN"
+
+    def __enter__(self):
+        self._motor.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._motor.disconnect()
+
+    def connect(self):
+        self._motor.connect()
+
+    def disconnect(self):
+        self._motor.disconnect()
+
+    @property
+    def position(self):
+        return self._position
+
+    def execute(self, command, timeout_s=120.0):
+        responses = self._motor.send_command(command, wait_response=True, response_timeout_s=timeout_s)
+        if not self._motor._has_error(responses):
+            self._update_position_from_command(command)
+        return responses
+
+    def _update_position_from_command(self, command):
+        cmd = command.strip().upper()
+        if cmd in ("HOME", "HOME_POSITION"):
+            self._position = "HOME"
+            return
+
+        if cmd.startswith("HOME_TO_VIAL"):
+            self._position = cmd.replace("HOME_TO_", "")
+            return
+
+        if cmd.startswith("VIAL") and "_TO_VIAL" in cmd:
+            self._position = cmd.split("_TO_")[1]
+            return
+
+        if cmd.startswith(("MOVE_", "HOME_Z", "HOME_X", "HOME_POSITION_Z", "HOME_POSITION_X")):
+            self._position = "UNKNOWN"
+
+    def home(self):
+        return self.execute("HOME_POSITION", timeout_s=60.0)
+
+    def go_to_vial(self, vial_number):
+        if vial_number not in (1, 2, 3, 4, 5):
+            raise ValueError("vial_number must be 1..5")
+
+        target = f"VIAL{vial_number}"
+        if self._position == target:
+            return []
+
+        if self._position.startswith("VIAL"):
+            command = f"{self._position}_TO_{target}"
+        else:
+            command = f"HOME_TO_{target}"
+        return self.execute(command, timeout_s=120.0)
+
+    def home_to_vial1(self):
+        return self.go_to_vial(1)
+
+    def home_to_vial2(self):
+        return self.go_to_vial(2)
+
+    def home_to_vial3(self):
+        return self.go_to_vial(3)
+
+    def home_to_vial4(self):
+        return self.go_to_vial(4)
+
+    def home_to_vial5(self):
+        return self.go_to_vial(5)
+
+    def quick_route(self, vial_numbers):
+        results = []
+        for vial in vial_numbers:
+            responses = self.go_to_vial(int(vial))
+            results.append({"target": f"VIAL{int(vial)}", "responses": responses})
+        return results
+
+
+# if __name__ == "__main__":
+#     # Example of using environment variables in other code.
+#     # The project .env file should contain:
+#     #   MOTOR_PORT=COM6
+#     #   MOTOR_BAUD=115200
+#     logging.basicConfig(level=logging.INFO, format="[%(module)s] %(message)s", stream=sys.stdout)
+#     with FastMotorInterface(verbose=True) as machine:
+#         machine.home()
+#         route = machine.quick_route([1, 2, 4, 3])
+#         print("DEBUG: fast route results:")
+#         for result in route:
+#             print(result["target"])
+#             for line in result["responses"]:
+#                 print("  ", line)
         
        
 
