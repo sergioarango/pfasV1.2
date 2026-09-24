@@ -3,6 +3,32 @@
 // added accelerator library for smooth acceleration/deceleration
 #include <AccelStepper.h>
 
+//pins for rotation control 
+const int rotatorMotorPin1 = 32;   // DRV8871 IN1
+const int rotatorMotorPin2 = 33;   // DRV8871 IN2
+
+//RPM CONTROL RANGE
+const float RPM_MIN = 500.0;
+const float RPM_MAX = 800.0;
+
+// ============================================================
+// CALIBRATION CURVE
+// RPM = 46.071 * PWM - 6299
+// Therefore:
+// PWM = (RPM + 6299) / 46.071
+// ============================================================
+const float CAL_SLOPE = 46.071;
+const float CAL_INTERCEPT = 6299.0;
+
+// ============================================================
+// PWM CONFIGURATION
+// ============================================================
+
+const int PWM_MIN = 0;
+const int PWM_MAX = 255;
+const int PWM_FREQ = 20000;       // 20 kHz
+const int PWM_RESOLUTION = 8;     // 8-bit = 0-255
+
 //Pins for endRace sensor
 const int Z_endRacePin = 17;
 const int X_endRacePin = 16;
@@ -90,6 +116,39 @@ void setup (){
     Serial.println("Z endstop: GPIO17, X endstop: GPIO16 (HIGH = triggered)");
 }
 
+//=============================================================
+//FUNCTIONS FOR ROTATOR MOTOR
+//=============================================================
+int rpmToPWM(float rpm) {
+  float pwm = (rpm + CAL_INTERCEPT) / CAL_SLOPE;
+  return round(pwm);
+}
+
+void stopRotator(){
+    analogWrite(rotatorMotorPin1, 0);
+    analogWrite(rotatorMotorPin2, 0);
+    Serial.println("ACK STOP ROTATOR");
+}
+
+void rotateClockwise(float rpm) {
+    if (rpm < RPM_MIN || rpm > RPM_MAX) {
+        Serial.print("ERR RPM must be between ");
+        Serial.print(RPM_MIN);
+        Serial.print(" and ");
+        Serial.println(RPM_MAX);
+        return;
+    }
+
+    //convert RPM to PWM
+    int pwm = rpmToPWM(rpm);
+
+    
+
+}
+
+//=============================================================
+//FUNCTIONS FOR ENDSTOP SENSORS
+//=============================================================
 bool zEndStopActive() {
     return digitalRead(Z_endRacePin) == HIGH;
 }
