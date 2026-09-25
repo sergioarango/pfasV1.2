@@ -199,11 +199,29 @@ class MotorsCom:
             is_multi_stage_vial_move = cmd_upper.startswith("HOME_TO_VIAL") or (
                 cmd_upper.startswith("VIAL") and "_TO_VIAL" in cmd_upper
             )
+            is_rotator_command = (
+                cmd_upper.startswith("ROTATE_CLOCK")
+                or cmd_upper.startswith("ROTATE_UCLOCK")
+                or cmd_upper == "STOP_ROTATOR"
+            )
+            is_emergency_command = cmd_upper in (
+                "EMERGENCY_STOP",
+                "ESTOP",
+                "STOP_ALL",
+                "CLEAR_EMERGENCY",
+                "RESET_ESTOP",
+            )
             move_complete_count = 0
 
             # ACK means command accepted. For multi-stage moves, wait for both MOVE_COMPLETE events.
             if is_multi_stage_vial_move:
                 completion_tokens = ("DONE", "DEVICE IS NOW IN VIAL", "ERR", "ERROR")
+            elif is_rotator_command:
+                # Rotator commands never emit DONE/MOVE_COMPLETE; their final reply is the detailed ACK line.
+                completion_tokens = ("ACK CLOCK", "ACK COUNTERCLOCK", "ACK STOP ROTATOR", "ERR", "ERROR")
+            elif is_emergency_command:
+                # Emergency stop/clear never emit DONE/MOVE_COMPLETE; their reply is a single ACK line.
+                completion_tokens = ("ACK EMERGENCY_STOP", "ACK CLEAR_EMERGENCY", "ERR", "ERROR")
             else:
                 completion_tokens = ("DONE", "MOVE_COMPLETE", "ERR", "ERROR")
 

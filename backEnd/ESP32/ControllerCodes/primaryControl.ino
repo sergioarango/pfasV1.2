@@ -65,6 +65,7 @@ const float X_acceleration = 200.0;
 //Vial position assignament variable
 String currentLocation = "UNKNOWN";
 bool emergencyStopLatched = false;
+bool rotatorActive = false;
 
 //AccelStepper Driver mode
 AccelStepper Zmotor(AccelStepper::DRIVER, Z_stepPin, Z_dirPin);
@@ -90,6 +91,12 @@ void setup (){
     // Rotator driver pins mode
     pinMode(rotatorMotorPin1, OUTPUT);
     pinMode(rotatorMotorPin2, OUTPUT);
+
+    // Apply calibrated PWM frequency/resolution (calibration curve assumes these values)
+    analogWriteFrequency(rotatorMotorPin1, PWM_FREQ);
+    analogWriteFrequency(rotatorMotorPin2, PWM_FREQ);
+    analogWriteResolution(rotatorMotorPin1, PWM_RESOLUTION);
+    analogWriteResolution(rotatorMotorPin2, PWM_RESOLUTION);
 
     //Initial conditions for motors
     //For motor Z
@@ -136,6 +143,10 @@ int rpmToPWM(float rpm) {
 void stopRotator(){
     analogWrite(rotatorMotorPin1, 0);
     analogWrite(rotatorMotorPin2, 0);
+    if (rotatorActive) {
+        rotatorActive = false;
+        Serial.println("Rotator: STOPPED");
+    }
     Serial.println("ACK STOP ROTATOR");
 }
 
@@ -151,6 +162,10 @@ void emergencyStopAll() {
     stopAxisMotors();
     analogWrite(rotatorMotorPin1, 0);
     analogWrite(rotatorMotorPin2, 0);
+    if (rotatorActive) {
+        rotatorActive = false;
+        Serial.println("Rotator: STOPPED");
+    }
     Serial.println("ACK EMERGENCY_STOP");
 }
 
@@ -199,6 +214,11 @@ void rotateClockwise(float rpm) {
     // IN2 = LOW
     analogWrite(rotatorMotorPin2, 0);
     analogWrite(rotatorMotorPin1, pwm);
+
+    if (!rotatorActive) {
+        rotatorActive = true;
+        Serial.println("Rotator: ACTIVE");
+    }
       // Report command
     Serial.print("ACK CLOCK | RPM=");
     Serial.print(rpm);
@@ -227,6 +247,11 @@ void rotateCounterClockwise(float rpm) {
     // IN2 = PWM
     analogWrite(rotatorMotorPin1, 0);
     analogWrite(rotatorMotorPin2, pwm);
+
+    if (!rotatorActive) {
+        rotatorActive = true;
+        Serial.println("Rotator: ACTIVE");
+    }
       // Report command
     Serial.print("ACK COUNTERCLOCK | RPM=");
     Serial.print(rpm);

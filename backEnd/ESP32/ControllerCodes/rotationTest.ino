@@ -40,6 +40,8 @@ const int PWM_MAX = 255;
 const int PWM_FREQ = 20000;       // 20 kHz
 const int PWM_RESOLUTION = 8;     // 8-bit = 0-255
 
+bool rotatorActive = false;
+
 
 // ============================================================
 // CONVERT RPM TO PWM
@@ -61,6 +63,11 @@ void stopMotor() {
 
   analogWrite(rotatorMotorPin1, 0);
   analogWrite(rotatorMotorPin2, 0);
+
+  if (rotatorActive) {
+    rotatorActive = false;
+    Serial.println("Rotator: STOPPED");
+  }
 
   Serial.println("ACK STOP");
 }
@@ -95,6 +102,11 @@ void rotateClockwise(float rpm) {
 
   analogWrite(rotatorMotorPin2, 0);
   analogWrite(rotatorMotorPin1, pwm);
+
+  if (!rotatorActive) {
+    rotatorActive = true;
+    Serial.println("Rotator: ACTIVE");
+  }
 
   // Report command
   Serial.print("ACK CLOCK | RPM=");
@@ -133,6 +145,11 @@ void rotateUClockwise(float rpm) {
 
   analogWrite(rotatorMotorPin1, 0);
   analogWrite(rotatorMotorPin2, pwm);
+
+  if (!rotatorActive) {
+    rotatorActive = true;
+    Serial.println("Rotator: ACTIVE");
+  }
 
   // Report command
   Serial.print("ACK UCLOCK | RPM=");
