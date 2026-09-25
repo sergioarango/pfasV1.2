@@ -90,5 +90,12 @@ echo [6/6] Installation complete.
 echo.
 echo To start the GUI, use the Desktop icon: PFAS ESP32 Control
 echo Or run: start_gui.bat
+echo.
+echo New control features available in the GUI and serial API:
+echo   - Rotator control with RPM setpoint (500-800)
+echo   - Rotator direction: CLOCK / UCLOCK
+echo   - Stop Rotator
+echo   - Emergency Stop All (rotator + X/Z axis motors)
+echo   - Clear Emergency lock
 pause
 exit /b 0

@@ -2,6 +2,8 @@
 
 This folder contains the controller firmware for the ESP32-based vial positioning system. The code listens on the serial port and accepts commands to move the X and Z stepper motors, home the axes, and move between vial positions.
 
+Current firmware also supports DRV8871 rotator control and a global emergency stop command.
+
 ## Serial setup
 
 - Baud rate: 115200
@@ -24,6 +26,57 @@ On Windows, the port is usually something like `COM3`, `COM4`, etc. On Linux/mac
 ---
 
 ## General command format
+
+### Rotator motor commands (DRV8871)
+
+```text
+ROTATE_CLOCK <rpm>
+ROTATE_UCLOCK <rpm>
+STOP_ROTATOR
+```
+
+- `<rpm>` must be in the range `500` to `800`.
+- `ROTATE_CLOCK` runs clockwise using PWM calculated from RPM calibration.
+- `ROTATE_UCLOCK` runs counterclockwise.
+- `STOP_ROTATOR` sets both DRV8871 inputs LOW/PWM=0.
+
+Examples:
+
+```text
+ROTATE_CLOCK 650
+ROTATE_UCLOCK 700
+STOP_ROTATOR
+```
+
+---
+
+### Emergency stop commands
+
+```text
+EMERGENCY_STOP
+ESTOP
+STOP_ALL
+```
+
+- Any alias above triggers immediate stop of:
+1. Rotator motor
+2. Z axis motor driver
+3. X axis motor driver
+- Emergency mode is latched after activation.
+
+To clear latch and resume operation:
+
+```text
+CLEAR_EMERGENCY
+RESET_ESTOP
+```
+
+Behavior while latched:
+
+- Regular movement and rotator commands are rejected.
+- Firmware responds with `ERR EMERGENCY_STOP active. Use CLEAR_EMERGENCY`.
+
+---
 
 ### Manual movement
 
@@ -189,7 +242,14 @@ Common responses:
 - `MOVE_COMPLETE` - stepper motion finished
 - `DONE` - homing or task finished
 - `ERR INVALID_STEP_COUNT` - bad step value
+- `ACK CLOCK | RPM=... | PWM=...` - rotator clockwise command accepted
+- `ACK COUNTERCLOCK | RPM=... | PWM=...` - rotator counterclockwise command accepted
+- `ACK STOP ROTATOR` - rotator stopped
+- `ACK EMERGENCY_STOP` - all motors stopped and emergency latch enabled
+- `ACK CLEAR_EMERGENCY` - emergency latch cleared
 - `ERR INVALID_VIAL_NUMBER` - vial number is not 1..5
+- `ERR RPM must be between 500 and 800` - invalid rotator speed
+- `ERR EMERGENCY_STOP active. Use CLEAR_EMERGENCY` - command blocked by active emergency latch
 - `ERR HOME NOT FOUND` - end-stop was not detected during homing
 - `Motor already at home position`
 - `Already at VIAL1, no movement` (or similar for other vial commands)
@@ -250,6 +310,10 @@ ser = serial.Serial('COM3', 115200, timeout=1)
 commands = [
     'HOME_POSITION',
     'HOME_TO_VIAL3',
+    'ROTATE_CLOCK 650',
+    'STOP_ROTATOR',
+    'EMERGENCY_STOP',
+    'CLEAR_EMERGENCY',
     'VIAL3_TO_VIAL5',
     'MOVE_UP 50'
 ]
@@ -268,6 +332,9 @@ for cmd in commands:
 The controller expects short text commands over Serial, not binary data. Most commands follow this style:
 
 - `MOVE_* <steps>` for manual motion
+- `ROTATE_CLOCK <rpm>` / `ROTATE_UCLOCK <rpm>` / `STOP_ROTATOR` for rotator motor control
+- `EMERGENCY_STOP` (or `ESTOP` / `STOP_ALL`) to stop all motors immediately
+- `CLEAR_EMERGENCY` (or `RESET_ESTOP`) to clear emergency lock
 - `HOME_*` for homing
 - `HOME_TO_VIALn` to move to a vial
 - `VIALa_TO_VIALb` to move between any two vial positions

@@ -2,6 +2,13 @@
 
 This folder contains a desktop GUI and serial communication layer to control the ESP32 motor firmware using buttons.
 
+The GUI supports:
+
+- X/Z axis movement and vial routing
+- Rotator RPM control (DRV8871)
+- Rotator stop
+- Emergency stop for all motors (rotator + axis motors)
+
 ## Files in this folder
 
 - `esp32_control_gui.py` - Button-based desktop interface
@@ -96,6 +103,81 @@ After GUI opens:
 2. Click `HOME_POSITION`
 3. Click `Go Vial 1`
 4. Check the response log for ACK/completion lines
+
+## New rotator and safety controls
+
+The GUI includes a **Rotator / Safety** panel with:
+
+- `RPM (500-800)` input
+- Direction selector: `CLOCK` or `UCLOCK`
+- `Start Rotator` button
+- `Stop Rotator` button
+- `EMERGENCY STOP` button
+- `Clear Emergency` button
+
+### GUI usage flow
+
+1. Click `Connect`
+2. Enter RPM in the range `500` to `800`
+3. Select direction `CLOCK` or `UCLOCK`
+4. Click `Start Rotator`
+5. Click `Stop Rotator` when needed
+6. If immediate halt is required, click `EMERGENCY STOP`
+7. Before resuming commands, click `Clear Emergency`
+
+## Serial commands for new features
+
+These commands are supported by current firmware:
+
+```text
+ROTATE_CLOCK <rpm>
+ROTATE_UCLOCK <rpm>
+STOP_ROTATOR
+
+EMERGENCY_STOP
+ESTOP
+STOP_ALL
+
+CLEAR_EMERGENCY
+RESET_ESTOP
+```
+
+Notes:
+
+- `<rpm>` must be between `500` and `800`
+- While emergency lock is active, firmware rejects normal motion/rotator commands
+- Send `CLEAR_EMERGENCY` to unlock operation
+
+## Python API additions in esp32com.py
+
+`MotorsCom` now includes:
+
+- `rotate_clock(rpm)`
+- `rotate_uclock(rpm)`
+- `stop_rotator()`
+- `stop_all()` -> sends `EMERGENCY_STOP`
+- `clear_emergency()` -> sends `CLEAR_EMERGENCY`
+
+`FastMotorInterface` now includes:
+
+- `rotate_clock(rpm)`
+- `rotate_uclock(rpm)`
+- `stop_rotator()`
+- `emergency_stop()`
+- `clear_emergency()`
+
+### Python example
+
+```python
+from esp32com import FastMotorInterface
+
+with FastMotorInterface(verbose=True) as machine:
+	machine.rotate_clock(650)
+	machine.stop_rotator()
+
+	machine.emergency_stop()
+	machine.clear_emergency()
+```
 
 ## Troubleshooting
 

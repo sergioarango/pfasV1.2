@@ -9,6 +9,7 @@ from __future__ import annotations
 import queue
 import threading
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import messagebox
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
@@ -20,18 +21,20 @@ class MotorControlApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("PFAS ESP32 Motor Control")
-        self.root.geometry("980x640")
+        self.root.geometry("1180x700")
 
         self.machine = FastMotorInterface(verbose=False)
         self.connected = False
 
-        self.task_queue: queue.Queue[tuple[str, callable]] = queue.Queue()
+        self.task_queue: queue.Queue[tuple[str, Callable[[], object]]] = queue.Queue()
         self.worker = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker.start()
 
         self.status_var = tk.StringVar(value="Disconnected")
         self.position_var = tk.StringVar(value="UNKNOWN")
         self.step_var = tk.StringVar(value="20")
+        self.rpm_var = tk.StringVar(value="600")
+        self.rotator_dir_var = tk.StringVar(value="CLOCK")
         self.route_var = tk.StringVar(value="1,2,4,3")
 
         self._build_ui()
@@ -91,6 +94,40 @@ class MotorControlApp:
         for col in range(3):
             manual_grid.columnconfigure(col, weight=1)
 
+        rotator_card = ttk.LabelFrame(actions, text="Rotator / Safety")
+        rotator_card.grid(row=0, column=3, sticky="nsew", padx=(8, 0), pady=(0, 8))
+
+        rpm_row = ttk.Frame(rotator_card)
+        rpm_row.pack(fill=tk.X, padx=8, pady=(8, 4))
+        ttk.Label(rpm_row, text="RPM (500-800):").pack(side=tk.LEFT)
+        ttk.Entry(rpm_row, textvariable=self.rpm_var, width=10).pack(side=tk.LEFT, padx=(8, 0))
+
+        dir_row = ttk.Frame(rotator_card)
+        dir_row.pack(fill=tk.X, padx=8, pady=(0, 8))
+        ttk.Label(dir_row, text="Direction:").pack(side=tk.LEFT)
+        ttk.Combobox(
+            dir_row,
+            textvariable=self.rotator_dir_var,
+            values=("CLOCK", "UCLOCK"),
+            width=10,
+            state="readonly",
+        ).pack(side=tk.LEFT, padx=(8, 0))
+
+        ttk.Button(rotator_card, text="Start Rotator", command=self._start_rotator).pack(fill=tk.X, padx=8, pady=(0, 6))
+        ttk.Button(rotator_card, text="Stop Rotator", command=self._stop_rotator).pack(fill=tk.X, padx=8, pady=(0, 12))
+        tk.Button(
+            rotator_card,
+            text="EMERGENCY STOP",
+            command=self._emergency_stop,
+            bg="#C62828",
+            fg="white",
+            activebackground="#B71C1C",
+            activeforeground="white",
+            relief=tk.RAISED,
+            bd=2,
+        ).pack(fill=tk.X, padx=8, pady=(0, 6))
+        ttk.Button(rotator_card, text="Clear Emergency", command=self._clear_emergency).pack(fill=tk.X, padx=8, pady=(0, 8))
+
         route_card = ttk.LabelFrame(main, text="Fast Route")
         route_card.pack(fill=tk.X, pady=(0, 8))
         ttk.Label(route_card, text="Vials (comma-separated):").pack(side=tk.LEFT, padx=(8, 6), pady=8)
@@ -102,7 +139,7 @@ class MotorControlApp:
         self.log = ScrolledText(log_card, height=18, wrap=tk.WORD, font=("Consolas", 10))
         self.log.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
 
-        for col in range(3):
+        for col in range(4):
             actions.columnconfigure(col, weight=1)
 
     def _append_log(self, text: str):
@@ -167,6 +204,35 @@ class MotorControlApp:
             return self.machine.quick_route(vial_list)
 
         self.enqueue(f"Route {vial_list}", task)
+
+    def _start_rotator(self):
+        try:
+            rpm = float(self.rpm_var.get().strip())
+        except ValueError:
+            messagebox.showerror("Invalid RPM", "RPM must be a number between 500 and 800.")
+            return
+
+        if rpm < 500 or rpm > 800:
+            messagebox.showerror("Invalid RPM", "RPM must be between 500 and 800.")
+            return
+
+        direction = self.rotator_dir_var.get().strip().upper()
+
+        def task():
+            if direction == "UCLOCK":
+                return self.machine.rotate_uclock(rpm)
+            return self.machine.rotate_clock(rpm)
+
+        self.enqueue(f"Rotator {direction} {rpm}", task)
+
+    def _stop_rotator(self):
+        self.enqueue("Stop Rotator", self.machine.stop_rotator)
+
+    def _emergency_stop(self):
+        self.enqueue("EMERGENCY_STOP", self.machine.emergency_stop)
+
+    def _clear_emergency(self):
+        self.enqueue("CLEAR_EMERGENCY", self.machine.clear_emergency)
 
     def enqueue(self, label: str, func):
         self.task_queue.put((label, func))

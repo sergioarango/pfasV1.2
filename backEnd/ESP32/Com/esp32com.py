@@ -363,10 +363,26 @@ class MotorsCom:
         return self.send_command("VIAL5_TO_VIAL4", response_timeout_s=120.0)
 
     def set_mixing(self, state, speed_rpm=1000, direction_clockwise=True):
-        raise NotImplementedError("Firmware does not implement MIXING command.")
+        if not state:
+            return self.stop_rotator()
+
+        if direction_clockwise:
+            return self.rotate_clock(speed_rpm)
+        return self.rotate_uclock(speed_rpm)
 
     def set_manual_mode(self, enabled):
         raise NotImplementedError("Firmware does not implement MANUAL_MODE command.")
+
+    def rotate_clock(self, rpm):
+        rpm_value = float(rpm)
+        return self.send_command(f"ROTATE_CLOCK {rpm_value}", response_timeout_s=8.0)
+
+    def rotate_uclock(self, rpm):
+        rpm_value = float(rpm)
+        return self.send_command(f"ROTATE_UCLOCK {rpm_value}", response_timeout_s=8.0)
+
+    def stop_rotator(self):
+        return self.send_command("STOP_ROTATOR", response_timeout_s=8.0)
 
     def move_right(self, steps=1):
         return self.send_command(f"MOVE_RIGHT {steps}", response_timeout_s=20.0)
@@ -381,7 +397,10 @@ class MotorsCom:
         return self.send_command(f"MOVE_DOWN {steps}", response_timeout_s=20.0)
 
     def stop_all(self):
-        raise NotImplementedError("Firmware does not implement STOP_ALL command.")
+        return self.send_command("EMERGENCY_STOP", response_timeout_s=8.0)
+
+    def clear_emergency(self):
+        return self.send_command("CLEAR_EMERGENCY", response_timeout_s=8.0)
 
 
 class FastMotorInterface:
@@ -438,6 +457,21 @@ class FastMotorInterface:
 
     def home(self):
         return self.execute("HOME_POSITION", timeout_s=60.0)
+
+    def rotate_clock(self, rpm):
+        return self._motor.rotate_clock(rpm)
+
+    def rotate_uclock(self, rpm):
+        return self._motor.rotate_uclock(rpm)
+
+    def stop_rotator(self):
+        return self._motor.stop_rotator()
+
+    def emergency_stop(self):
+        return self._motor.stop_all()
+
+    def clear_emergency(self):
+        return self._motor.clear_emergency()
 
     def go_to_vial(self, vial_number):
         if vial_number not in (1, 2, 3, 4, 5):

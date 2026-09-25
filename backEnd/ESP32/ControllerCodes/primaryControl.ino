@@ -64,6 +64,7 @@ const float X_acceleration = 200.0;
 
 //Vial position assignament variable
 String currentLocation = "UNKNOWN";
+bool emergencyStopLatched = false;
 
 //AccelStepper Driver mode
 AccelStepper Zmotor(AccelStepper::DRIVER, Z_stepPin, Z_dirPin);
@@ -86,6 +87,10 @@ void setup (){
     pinMode(X_dirPin, OUTPUT);
     pinMode(X_enablePin, OUTPUT);
 
+    // Rotator driver pins mode
+    pinMode(rotatorMotorPin1, OUTPUT);
+    pinMode(rotatorMotorPin2, OUTPUT);
+
     //Initial conditions for motors
     //For motor Z
     digitalWrite(Z_stepPin, LOW);
@@ -99,6 +104,10 @@ void setup (){
     digitalWrite(X_stepPin, LOW);
     digitalWrite(X_dirPin, LOW);
     digitalWrite(X_enablePin, HIGH);
+
+    // For rotator
+    analogWrite(rotatorMotorPin1, 0);
+    analogWrite(rotatorMotorPin2, 0);
     //Max speed and accelaration
     Xmotor.setMaxSpeed(X_maxSpeed);
     Xmotor.setAcceleration(X_acceleration);
@@ -128,6 +137,46 @@ void stopRotator(){
     analogWrite(rotatorMotorPin1, 0);
     analogWrite(rotatorMotorPin2, 0);
     Serial.println("ACK STOP ROTATOR");
+}
+
+void stopAxisMotors() {
+    Zmotor.stop();
+    Xmotor.stop();
+    digitalWrite(Z_enablePin, HIGH);
+    digitalWrite(X_enablePin, HIGH);
+}
+
+void emergencyStopAll() {
+    emergencyStopLatched = true;
+    stopAxisMotors();
+    analogWrite(rotatorMotorPin1, 0);
+    analogWrite(rotatorMotorPin2, 0);
+    Serial.println("ACK EMERGENCY_STOP");
+}
+
+void clearEmergencyStop() {
+    emergencyStopLatched = false;
+    Serial.println("ACK CLEAR_EMERGENCY");
+}
+
+bool checkEmergencyStopFromSerial() {
+    if (!Serial.available()) {
+        return false;
+    }
+
+    String incoming = Serial.readStringUntil('\n');
+    incoming.trim();
+    incoming.toUpperCase();
+
+    if (incoming == "EMERGENCY_STOP" || incoming == "ESTOP" || incoming == "STOP_ALL") {
+        emergencyStopAll();
+        return true;
+    }
+
+    if (incoming.length() > 0) {
+        Serial.println("BUSY: only EMERGENCY_STOP accepted during motion");
+    }
+    return false;
 }
 
 void rotateClockwise(float rpm) {
@@ -236,6 +285,10 @@ bool endstopConfirmed(int endstopPin) {
 
 void homePosition(AccelStepper &motor, int endstopPin, int enablePin, int maxSteps) {
 
+    if (emergencyStopLatched) {
+        return;
+    }
+
     // first Z home position
     //check z home sensor
     bool AlreadyHome = endstopConfirmed(endstopPin);
@@ -255,6 +308,10 @@ void homePosition(AccelStepper &motor, int endstopPin, int enablePin, int maxSte
     motor.moveTo(-maxSteps);
 
     while (motor.distanceToGo() != 0) {
+        if (checkEmergencyStopFromSerial()) {
+            return;
+        }
+
         if (endstopConfirmed(endstopPin)) {
             Serial.println("Motor reached home position");
             motor.setCurrentPosition(0);
@@ -273,6 +330,10 @@ void homePosition(AccelStepper &motor, int endstopPin, int enablePin, int maxSte
 
 void moveStepper(AccelStepper &motor, int dirPin, int enablePin, long steps, bool direction) {
 
+    if (emergencyStopLatched) {
+        return;
+    }
+
     // Check that the requested number of steps is valid
     if (steps <= 0) {
         Serial.println("ERR INVALID_STEP_COUNT");
@@ -290,6 +351,9 @@ void moveStepper(AccelStepper &motor, int dirPin, int enablePin, long steps, boo
 
     // execute movement
     while (motor.distanceToGo() != 0) {
+        if (checkEmergencyStopFromSerial()) {
+            return;
+        }
         motor.run();
     }
 
@@ -313,6 +377,10 @@ long parseSteps(const String &command) {
 }
 
 void homeToVial(int vialNumber) {
+
+    if (emergencyStopLatched) {
+        return;
+    }
      
     Serial.print("Homing... ");
     Serial.println(vialNumber);
@@ -320,6 +388,10 @@ void homeToVial(int vialNumber) {
     // Move to home position first
     homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
     homePosition(Xmotor, X_endRacePin, X_enablePin, X_maxStepHome);
+
+    if (emergencyStopLatched) {
+        return;
+    }
 
     // Move to the specified vial position
     switch (vialNumber) {
@@ -357,6 +429,21 @@ void serialComm (const String &command) {
     cmd.trim();
     cmd.toUpperCase();
 
+    if (cmd == "EMERGENCY_STOP" || cmd == "ESTOP" || cmd == "STOP_ALL") {
+        emergencyStopAll();
+        return;
+    }
+
+    if (cmd == "CLEAR_EMERGENCY" || cmd == "RESET_ESTOP") {
+        clearEmergencyStop();
+        return;
+    }
+
+    if (emergencyStopLatched) {
+        Serial.println("ERR EMERGENCY_STOP active. Use CLEAR_EMERGENCY");
+        return;
+    }
+
     // ROTATOR MOTOR COMMANDS
     if (cmd == "STOP_ROTATOR") {
         stopRotator();
@@ -385,7 +472,7 @@ void serialComm (const String &command) {
             return;
         }
         float rpm = rpmText.toFloat();
-        rotateUnclockwise(rpm);
+        rotateCounterClockwise(rpm);
     }
     
     // .............
