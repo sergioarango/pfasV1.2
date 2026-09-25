@@ -142,8 +142,47 @@ void rotateClockwise(float rpm) {
     //convert RPM to PWM
     int pwm = rpmToPWM(rpm);
 
+    //Safety limit
+    pwm = constrain(pwm, PWM_MIN, PWM_MAX);
     
+    // DRV8871:
+    // IN1 = PWM
+    // IN2 = LOW
+    analogWrite(rotatorMotorPin2, 0);
+    analogWrite(rotatorMotorPin1, pwm);
+      // Report command
+    Serial.print("ACK CLOCK | RPM=");
+    Serial.print(rpm);
+    Serial.print(" | PWM=");
+    Serial.println(pwm);
 
+}
+
+void rotateCounterClockwise(float rpm) {
+    if (rpm < RPM_MIN || rpm > RPM_MAX) {
+        Serial.print("ERR RPM must be between ");
+        Serial.print(RPM_MIN);
+        Serial.print(" and ");
+        Serial.println(RPM_MAX);
+        return;
+    }
+
+    //convert RPM to PWM
+    int pwm = rpmToPWM(rpm);
+
+    //Safety limit
+    pwm = constrain(pwm, PWM_MIN, PWM_MAX);
+    
+    // DRV8871:
+    // IN1 = LOW
+    // IN2 = PWM
+    analogWrite(rotatorMotorPin1, 0);
+    analogWrite(rotatorMotorPin2, pwm);
+      // Report command
+    Serial.print("ACK COUNTERCLOCK | RPM=");
+    Serial.print(rpm);
+    Serial.print(" | PWM=");
+    Serial.println(pwm);
 }
 
 //=============================================================
@@ -317,6 +356,37 @@ void serialComm (const String &command) {
     String cmd = command;
     cmd.trim();
     cmd.toUpperCase();
+
+    // ROTATOR MOTOR COMMANDS
+    if (cmd == "STOP_ROTATOR") {
+        stopRotator();
+    }
+
+    if (cmd.startsWith("ROTATE_CLOCK ")) {
+        Serial.println("ACK");
+        String rpmText = cmd.substring(13);
+        rpmText.trim();
+
+        if (rpmText.length() == 0){
+            Serial.println("ERR Use: clock <500-800>");
+            return;
+        }
+        float rpm = rpmText.toFloat();
+        rotateClockwise(rpm);
+    }
+
+    if (cmd.startsWith("ROTATE_UCLOCK ")) {
+        Serial.println("ACK");
+        String rpmText = cmd.substring(14);
+        rpmText.trim();
+
+        if (rpmText.length() == 0){
+            Serial.println("ERR Use: uclock <500-800>");
+            return;
+        }
+        float rpm = rpmText.toFloat();
+        rotateUnclockwise(rpm);
+    }
     
     // .............
     //Manual operation
