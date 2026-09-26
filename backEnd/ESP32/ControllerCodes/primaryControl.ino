@@ -43,15 +43,15 @@ const int ENDSTOP_CONFIRM_READS = 5;  // number of reads to confirm if the platf
 const unsigned long ENDSTOP_DEBOUNCE_MS = 50;
 
 //Pins for step motor control axis Z
-const int Z_stepPin = 18;
-const int Z_dirPin = 5;
-const int Z_enablePin = 27;
+const int Z_stepPin = 5;
+const int Z_dirPin = 18;
+const int Z_enablePin = 19;
 const int Z_maxStepHome = 100000;
 
 //Pins for step motor control axis X
 const int X_stepPin = 25;
 const int X_dirPin = 26;
-const int X_enablePin = 14;
+const int X_enablePin = 27;
 const int X_maxStepHome = 5000;
 
 //maximum speed in steps/second
