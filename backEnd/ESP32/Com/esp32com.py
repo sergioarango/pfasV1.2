@@ -33,6 +33,9 @@ class MotorsCom:
         self.LOG = logging.getLogger(__name__)
         self._ser = None
         self._command_lock = threading.Lock()
+        # Guards raw writes only, so emergency_stop_now() can interrupt a send_command() call
+        # that is still holding _command_lock while it waits on a response.
+        self._write_lock = threading.Lock()
 
     def _debug(self, message):
         """Print debug output only when verbose mode is enabled."""
@@ -186,8 +189,9 @@ class MotorsCom:
             wire = f"{command}\n".encode("utf-8")
             self._debug(f"DEBUG: sending command -> {command!r} bytes={wire!r}")
             self.LOG.debug("TX -> %s", command)
-            self._ser.write(wire)
-            self._ser.flush()
+            with self._write_lock:
+                self._ser.write(wire)
+                self._ser.flush()
 
             if not wait_response:
                 return []
@@ -415,7 +419,27 @@ class MotorsCom:
         return self.send_command(f"MOVE_DOWN {steps}", response_timeout_s=20.0)
 
     def stop_all(self):
-        return self.send_command("EMERGENCY_STOP", response_timeout_s=8.0)
+        # Uses the priority path: send_command() would block behind _command_lock
+        # until whatever command is currently in flight (e.g. HOME_POSITION) finishes.
+        self.emergency_stop_now()
+        return []
+
+    def emergency_stop_now(self):
+        """Write EMERGENCY_STOP immediately, bypassing _command_lock.
+
+        send_command() holds _command_lock for its entire write+wait-for-response
+        cycle, so a long-running command (HOME_POSITION, a vial route, ...) would
+        otherwise delay an emergency stop until it finishes or times out. This
+        writes directly, using only the short-lived _write_lock, so the firmware
+        receives it while the other command is still executing.
+        """
+        self.connect()
+        wire = b"EMERGENCY_STOP\n"
+        self._debug(f"DEBUG: sending PRIORITY command -> {wire!r}")
+        self.LOG.debug("TX (priority) -> EMERGENCY_STOP")
+        with self._write_lock:
+            self._ser.write(wire)
+            self._ser.flush()
 
     def clear_emergency(self):
         return self.send_command("CLEAR_EMERGENCY", response_timeout_s=8.0)
@@ -487,6 +511,9 @@ class FastMotorInterface:
 
     def emergency_stop(self):
         return self._motor.stop_all()
+
+    def emergency_stop_now(self):
+        self._motor.emergency_stop_now()
 
     def clear_emergency(self):
         return self._motor.clear_emergency()

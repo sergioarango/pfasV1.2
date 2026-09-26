@@ -229,7 +229,18 @@ class MotorControlApp:
         self.enqueue("Stop Rotator", self.machine.stop_rotator)
 
     def _emergency_stop(self):
-        self.enqueue("EMERGENCY_STOP", self.machine.emergency_stop)
+        # Bypass the task queue: the single worker thread may be blocked inside a
+        # long-running command (e.g. HOME_POSITION), so enqueuing here would just
+        # wait behind it and never actually reach the ESP32 in time.
+        self._append_log("[TX] EMERGENCY_STOP (priority)")
+        threading.Thread(target=self._send_emergency_stop_now, daemon=True).start()
+
+    def _send_emergency_stop_now(self):
+        try:
+            self.machine.emergency_stop_now()
+            self.root.after(0, self._append_log, "[DONE] EMERGENCY_STOP sent immediately")
+        except Exception as exc:
+            self.root.after(0, self._append_log, f"[ERR] EMERGENCY_STOP: {exc}")
 
     def _clear_emergency(self):
         self.enqueue("CLEAR_EMERGENCY", self.machine.clear_emergency)
