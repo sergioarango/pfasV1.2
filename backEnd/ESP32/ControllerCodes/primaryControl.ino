@@ -754,14 +754,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL2") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, false);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, false);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL4";
             Serial.println("DONE");
         } else {
             homeToVial(2);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, false);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, false);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL4";
         }
@@ -771,14 +771,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL2") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 795, false);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 760, false);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL5";
             Serial.println("DONE");
         } else {
             homeToVial(2);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 795, false);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 760, false);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL5";
         }
@@ -842,14 +842,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL3") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, false);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, false);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL5";
             Serial.println("DONE");
         } else {
             homeToVial(3);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, false);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, false);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL5";
         }
@@ -879,14 +879,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL4") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL2";
             Serial.println("DONE");
         } else {
             homeToVial(4);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL2";
         }
@@ -896,14 +896,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL4") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 265, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 255, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL3";
             Serial.println("DONE");
         } else {
             homeToVial(4);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 265, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 255, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL3";
         }
@@ -950,14 +950,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL5") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 795, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 765, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL2";
             Serial.println("DONE");
         } else {
             homeToVial(5);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 795, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 765, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL2";
         }
@@ -967,14 +967,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL5") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL3";
             Serial.println("DONE");
         } else {
             homeToVial(5);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 530, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 510, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL3";
         }
@@ -984,14 +984,14 @@ void serialComm (const String &command) {
         Serial.println("ACK");
         if (currentLocation == "VIAL5") {
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 265, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 255, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL4";
             Serial.println("DONE");
         } else {
             homeToVial(5);
             homePosition(Zmotor, Z_endRacePin, Z_enablePin, Z_maxStepHome);
-            moveStepper(Xmotor, X_dirPin, X_enablePin, 265, true);
+            moveStepper(Xmotor, X_dirPin, X_enablePin, 255, true);
             moveStepper(Zmotor, Z_dirPin, Z_enablePin, 63000, true);
             currentLocation = "VIAL4";
         }
