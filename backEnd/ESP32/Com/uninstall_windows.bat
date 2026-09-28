@@ -6,12 +6,15 @@ cd /d "%~dp0"
 set "APP_DIR=%CD%"
 set "DESKTOP_LINK=%USERPROFILE%\Desktop\PFAS ESP32 Control.lnk"
 
-echo [1/3] Closing launcher dependencies...
+echo [1/4] Closing running GUI instance (if any)...
+wmic process where "name='python.exe' and CommandLine like '%%esp32_control_gui.py%%'" call terminate >nul 2>&1
+
+echo [2/4] Closing launcher dependencies...
 if exist ".venv\Scripts\activate.bat" (
     call .venv\Scripts\activate.bat >nul 2>&1
 )
 
-echo [2/3] Removing Desktop shortcut...
+echo [3/4] Removing Desktop shortcut...
 if exist "%DESKTOP_LINK%" (
     del /f /q "%DESKTOP_LINK%"
     if errorlevel 1 (
@@ -23,7 +26,7 @@ if exist "%DESKTOP_LINK%" (
     echo Desktop shortcut was not found.
 )
 
-echo [3/3] Removing local virtual environment...
+echo [4/4] Removing local virtual environment...
 if exist ".venv" (
     rmdir /s /q ".venv"
     if errorlevel 1 (

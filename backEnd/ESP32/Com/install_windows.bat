@@ -95,7 +95,8 @@ echo New control features available in the GUI and serial API:
 echo   - Rotator control with RPM setpoint (500-800)
 echo   - Rotator direction: CLOCK / UCLOCK
 echo   - Stop Rotator
-echo   - Emergency Stop All (rotator + X/Z axis motors)
+echo   - Emergency Stop All (rotator + X/Z axis motors), sent immediately even
+echo     while a command like HOME_POSITION is still running
 echo   - Clear Emergency lock
 pause
 exit /b 0
